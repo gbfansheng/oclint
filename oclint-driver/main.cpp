@@ -48,13 +48,19 @@ bool numberOfViolationsExceedThreshold(oclint::Results *results)
         results->numberOfViolationsWithPriority(3) > oclint::option::maxP3();
 }
 
-ostream* outStream()
+ostream* outStream(oclint::Reporter* reporter)
 {
     if (!oclint::option::hasOutputPath())
     {
         return &cout;
     }
+
+    // the original outputPath should be like that: "dir1/dir2/name.*"
+    // Or due to the old config file, like that: "dir1/dir2/name.html", "dir1/dir2/name.xml"
+    // We should modify the outputPath so that the name extension matches reporter->name()
     string output = oclint::option::outputPath();
+    output = llvm::sys::path::parent_path(output).str() + "/" + llvm::sys::path::stem(output).str() + "." + reporter->name();
+
     auto out = new ofstream(output.c_str());
     if (!out->is_open())
     {
@@ -205,9 +211,11 @@ int main(int argc, const char **argv)
 
     try
     {
-        ostream *out = outStream();
-        reporter()->report(results.get(), *out);
-        disposeOutStream(out);
+        for (auto& reporter : reporters()) {
+            ostream *out = outStream(reporter);
+            reporter->report(results.get(), *out);
+            disposeOutStream(out);
+        }
     }
     catch (const exception& e)
     {
